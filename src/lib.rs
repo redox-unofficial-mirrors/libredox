@@ -7,11 +7,20 @@ use syscall::error::{Error, Result};
 pub mod flag {
     pub use libc::{O_CREAT, O_DIRECTORY, O_CLOEXEC, O_RDONLY, O_RDWR, O_WRONLY, O_ACCMODE, O_NONBLOCK};
 
+    pub use libc::{CLOCK_MONOTONIC, CLOCK_REALTIME};
+
     #[cfg(target_os = "redox")]
     pub use libc::{O_SHLOCK, O_EXLOCK};
+
+    #[cfg(target_os = "redox")]
+    pub const O_STAT: i32 = syscall::flag::O_STAT as i32;
 }
+
 pub mod errno {
     pub use libc::{EPERM, EACCES, EBADF, EBADFD, ENODEV, ESRCH, EPIPE, ESPIPE, EBUSY, EINTR, EAGAIN, EWOULDBLOCK};
+}
+pub mod data {
+    pub use libc::timespec as TimeSpec;
 }
 
 type RawResult = usize;
@@ -37,6 +46,8 @@ extern "C" {
     fn redox_get_rgid_v1() -> RawResult;
     fn redox_setrens_v1(rns: usize, ens: usize) -> RawResult;
     fn redox_waitpid_v1(pid: usize, status: *mut i32, options: i32) -> RawResult;
+
+    fn redox_clock_gettime_v1(clock: usize, ts: *mut data::TimeSpec) -> RawResult;
 }
 
 pub struct Fd(usize);
@@ -185,5 +196,9 @@ pub mod call {
     #[inline]
     pub fn waitpid(pid: usize, status: &mut i32, options: i32) -> Result<usize> {
         Error::demux(unsafe { redox_waitpid_v1(pid, status as *mut i32, options) })
+    }
+    #[inline]
+    pub fn clock_gettime(clock: i32, ts: &mut data::TimeSpec) -> Result<usize> {
+        Error::demux(unsafe { redox_clock_gettime_v1(clock as usize, ts) })
     }
 }
