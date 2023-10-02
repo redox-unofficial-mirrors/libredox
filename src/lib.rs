@@ -28,7 +28,7 @@ type RawResult = usize;
 extern "C" {
     // NOTE: Although there are version suffixes, there'd have to be strong reasons for adding new
     // version.
-    fn redox_open_v1(path_base: *const u8, path_len: usize, flags: i32, mode: u16) -> RawResult;
+    fn redox_open_v1(path_base: *const u8, path_len: usize, flags: u32, mode: u16) -> RawResult;
     fn redox_dup_v1(fd: usize, buf: *const u8, len: usize) -> RawResult;
     fn redox_dup2_v1(old_fd: usize, new_fd: usize, buf: *const u8, len: usize) -> RawResult;
     fn redox_read_v1(fd: usize, dst_base: *mut u8, dst_len: usize) -> RawResult;
@@ -45,7 +45,7 @@ extern "C" {
     fn redox_get_egid_v1() -> RawResult;
     fn redox_get_rgid_v1() -> RawResult;
     fn redox_setrens_v1(rns: usize, ens: usize) -> RawResult;
-    fn redox_waitpid_v1(pid: usize, status: *mut i32, options: i32) -> RawResult;
+    fn redox_waitpid_v1(pid: usize, status: *mut i32, options: u32) -> RawResult;
 
     fn redox_clock_gettime_v1(clock: usize, ts: *mut data::TimeSpec) -> RawResult;
 }
@@ -123,7 +123,7 @@ pub mod call {
     #[inline]
     pub fn open(path: impl AsRef<str>, flags: i32, mode: u16) -> Result<usize> {
         let path = path.as_ref();
-        Ok(Error::demux(unsafe { redox_open_v1(path.as_ptr(), path.len(), flags, mode) })?)
+        Ok(Error::demux(unsafe { redox_open_v1(path.as_ptr(), path.len(), flags as u32, mode) })?)
     }
     #[inline]
     pub fn dup(fd: usize, buf: impl AsRef<[u8]>) -> Result<usize> {
@@ -195,7 +195,7 @@ pub mod call {
     }
     #[inline]
     pub fn waitpid(pid: usize, status: &mut i32, options: i32) -> Result<usize> {
-        Error::demux(unsafe { redox_waitpid_v1(pid, status as *mut i32, options) })
+        Error::demux(unsafe { redox_waitpid_v1(pid, status as *mut i32, options as u32) })
     }
     #[inline]
     pub fn clock_gettime(clock: i32, ts: &mut data::TimeSpec) -> Result<usize> {
