@@ -6,6 +6,7 @@ edition = "2021"
 license = "MIT"
 description = "Redox stable ABI"
 repository = "https://gitlab.redox-os.org/redox-os/libredox.git"
+exclude = ["target"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
