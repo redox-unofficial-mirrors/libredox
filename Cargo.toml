@@ -7,6 +7,11 @@ license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["scheme", "call"]
+scheme = ["call"]
+call = []
+
 [dependencies]
 bitflags = "2"
 libc = "0.2"
