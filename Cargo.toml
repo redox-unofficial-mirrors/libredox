@@ -1,9 +1,11 @@
 [package]
 name = "libredox"
 authors = ["4lDO2 <4lDO2@protonmail.com>"]
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
 license = "MIT"
+description = "Redox stable ABI"
+repository = "https://gitlab.redox-os.org/redox-os/libredox.git"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
