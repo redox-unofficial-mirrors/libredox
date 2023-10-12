@@ -26,7 +26,13 @@ pub mod errno {
 pub mod data {
     pub use libc::timespec as TimeSpec;
     pub use libc::sigaction as SigAction;
+
+    #[cfg(target_os = "redox")]
     pub use libc::sigset_t as SigSet;
+
+    // TODO: Should libredox compile on non-Redox platforms?
+    #[cfg(not(target_os = "redox"))]
+    pub type SigSet = u64;
 }
 
 type RawResult = usize;
