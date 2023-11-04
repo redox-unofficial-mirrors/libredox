@@ -5,27 +5,40 @@ pub use syscall::error;
 use syscall::error::{Error, Result};
 
 pub mod flag {
-    pub use libc::{O_CREAT, O_DIRECTORY, O_CLOEXEC, O_RDONLY, O_RDWR, O_WRONLY, O_ACCMODE, O_NONBLOCK};
+    pub use libc::{
+        O_ACCMODE, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_NONBLOCK, O_RDONLY, O_RDWR, O_WRONLY,
+    };
 
     pub use libc::{CLOCK_MONOTONIC, CLOCK_REALTIME};
 
-    pub use libc::{SIG_BLOCK, SIG_UNBLOCK, SIG_SETMASK};
+    pub use libc::{SIG_BLOCK, SIG_SETMASK, SIG_UNBLOCK};
 
     pub use libc::{SIGUSR1, SIGUSR2};
 
     #[cfg(target_os = "redox")]
-    pub use libc::{O_SHLOCK, O_EXLOCK};
+    pub use libc::{O_EXLOCK, O_SHLOCK};
 
     #[cfg(target_os = "redox")]
     pub const O_STAT: i32 = syscall::flag::O_STAT as i32;
+
+    pub const MAP_SHARED: u32 = libc::MAP_SHARED as u32;
+    pub const MAP_PRIVATE: u32 = libc::MAP_PRIVATE as u32;
+
+    pub const PROT_NONE: u32 = libc::PROT_NONE as u32;
+    pub const PROT_READ: u32 = libc::PROT_READ as u32;
+    pub const PROT_WRITE: u32 = libc::PROT_WRITE as u32;
+    pub const PROT_EXEC: u32 = libc::PROT_EXEC as u32;
 }
 
 pub mod errno {
-    pub use libc::{EPERM, EACCES, EBADF, EBADFD, ENODEV, ESRCH, EPIPE, ESPIPE, EBUSY, EINTR, EAGAIN, EWOULDBLOCK};
+    pub use libc::{
+        EACCES, EAGAIN, EBADF, EBADFD, EBUSY, EINTR, ENODEV, EPERM, EPIPE, ESPIPE, ESRCH,
+        EWOULDBLOCK,
+    };
 }
 pub mod data {
-    pub use libc::timespec as TimeSpec;
     pub use libc::sigaction as SigAction;
+    pub use libc::timespec as TimeSpec;
 
     #[cfg(target_os = "redox")]
     pub use libc::sigset_t as SigSet;
@@ -67,9 +80,23 @@ extern "C" {
     fn redox_waitpid_v1(pid: usize, status: *mut i32, options: u32) -> RawResult;
 
     fn redox_sigprocmask_v1(how: u32, new: *const u64, old: *mut u64) -> RawResult;
-    fn redox_sigaction_v1(signal: u32, new: *const data::SigAction, old: *mut data::SigAction) -> RawResult;
+    fn redox_sigaction_v1(
+        signal: u32,
+        new: *const data::SigAction,
+        old: *mut data::SigAction,
+    ) -> RawResult;
 
     fn redox_clock_gettime_v1(clock: usize, ts: *mut data::TimeSpec) -> RawResult;
+
+    fn redox_mmap_v1(
+        addr: *mut (),
+        unaligned_len: usize,
+        prot: u32,
+        flags: u32,
+        fd: usize,
+        offset: u64,
+    ) -> RawResult;
+    fn redox_munmap_v1(addr: *mut (), unaligned_len: usize) -> RawResult;
 }
 
 #[cfg(feature = "call")]
@@ -91,7 +118,9 @@ impl Fd {
     }
 
     #[inline]
-    pub const fn raw(&self) -> usize { self.0 }
+    pub const fn raw(&self) -> usize {
+        self.0
+    }
 
     #[inline]
     pub fn into_raw(self) -> usize {
@@ -149,25 +178,35 @@ pub mod call {
     #[inline]
     pub fn open(path: impl AsRef<str>, flags: i32, mode: u16) -> Result<usize> {
         let path = path.as_ref();
-        Ok(Error::demux(unsafe { redox_open_v1(path.as_ptr(), path.len(), flags as u32, mode) })?)
+        Ok(Error::demux(unsafe {
+            redox_open_v1(path.as_ptr(), path.len(), flags as u32, mode)
+        })?)
     }
     #[inline]
     pub fn dup(fd: usize, buf: impl AsRef<[u8]>) -> Result<usize> {
         let buf = buf.as_ref();
-        Ok(Error::demux(unsafe { redox_dup_v1(fd, buf.as_ptr(), buf.len()) })?)
+        Ok(Error::demux(unsafe {
+            redox_dup_v1(fd, buf.as_ptr(), buf.len())
+        })?)
     }
     #[inline]
     pub fn dup2(old_fd: usize, new_fd: usize, buf: impl AsRef<[u8]>) -> Result<usize> {
         let buf = buf.as_ref();
-        Ok(Error::demux(unsafe { redox_dup2_v1(old_fd, new_fd, buf.as_ptr(), buf.len()) })?)
+        Ok(Error::demux(unsafe {
+            redox_dup2_v1(old_fd, new_fd, buf.as_ptr(), buf.len())
+        })?)
     }
     #[inline]
     pub fn read(raw_fd: usize, buf: &mut [u8]) -> Result<usize> {
-        Ok(Error::demux(unsafe { redox_read_v1(raw_fd, buf.as_mut_ptr(), buf.len()) })?)
+        Ok(Error::demux(unsafe {
+            redox_read_v1(raw_fd, buf.as_mut_ptr(), buf.len())
+        })?)
     }
     #[inline]
     pub fn write(raw_fd: usize, buf: &[u8]) -> Result<usize> {
-        Ok(Error::demux(unsafe { redox_write_v1(raw_fd, buf.as_ptr(), buf.len()) })?)
+        Ok(Error::demux(unsafe {
+            redox_write_v1(raw_fd, buf.as_ptr(), buf.len())
+        })?)
     }
     #[inline]
     pub fn fsync(raw_fd: usize) -> Result<()> {
@@ -189,7 +228,9 @@ pub mod call {
     }
     #[inline]
     pub fn fpath(raw_fd: usize, buf: &mut [u8]) -> Result<usize> {
-        Ok(Error::demux(unsafe { redox_fpath_v1(raw_fd, buf.as_mut_ptr(), buf.len()) })?)
+        Ok(Error::demux(unsafe {
+            redox_fpath_v1(raw_fd, buf.as_mut_ptr(), buf.len())
+        })?)
     }
     #[inline]
     pub fn close(raw_fd: usize) -> Result<()> {
@@ -236,12 +277,60 @@ pub mod call {
         Error::demux(unsafe { redox_clock_gettime_v1(clock as usize, ts) }).map(|_| ())
     }
     #[inline]
-    pub fn sigprocmask(how: i32, newmask: Option<&data::SigSet>, oldmask: Option<&mut data::SigSet>) -> Result<()> {
-        Error::demux(unsafe { redox_sigprocmask_v1(how as u32, newmask.map_or(core::ptr::null(), |m| m), oldmask.map_or(core::ptr::null_mut(), |m| m)) }).map(|_| ())
+    pub fn sigprocmask(
+        how: i32,
+        newmask: Option<&data::SigSet>,
+        oldmask: Option<&mut data::SigSet>,
+    ) -> Result<()> {
+        Error::demux(unsafe {
+            redox_sigprocmask_v1(
+                how as u32,
+                newmask.map_or(core::ptr::null(), |m| m),
+                oldmask.map_or(core::ptr::null_mut(), |m| m),
+            )
+        })
+        .map(|_| ())
     }
     #[inline]
-    pub fn sigaction(signal: i32, newact: Option<&data::SigAction>, oldact: Option<&mut data::SigAction>) -> Result<()> {
-        Error::demux(unsafe { redox_sigaction_v1(signal as u32, newact.map_or(core::ptr::null(), |m| m), oldact.map_or(core::ptr::null_mut(), |m| m)) }).map(|_| ())
+    pub fn sigaction(
+        signal: i32,
+        newact: Option<&data::SigAction>,
+        oldact: Option<&mut data::SigAction>,
+    ) -> Result<()> {
+        Error::demux(unsafe {
+            redox_sigaction_v1(
+                signal as u32,
+                newact.map_or(core::ptr::null(), |m| m),
+                oldact.map_or(core::ptr::null_mut(), |m| m),
+            )
+        })
+        .map(|_| ())
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    pub struct MmapArgs {
+        pub addr: *mut (),
+        pub length: usize,
+        pub prot: u32,
+        pub flags: u32,
+        pub fd: usize,
+        pub offset: u64,
+    }
+    #[inline]
+    pub unsafe fn mmap(args: MmapArgs) -> Result<*mut ()> {
+        Error::demux(redox_mmap_v1(
+            args.addr,
+            args.length,
+            args.prot,
+            args.flags,
+            args.fd,
+            args.offset,
+        ))
+        .map(|addr| addr as *mut ())
+    }
+    #[inline]
+    pub unsafe fn munmap(addr: *mut (), length: usize) -> Result<()> {
+        Error::demux(redox_munmap_v1(addr, length)).map(|_| ())
     }
 }
 
@@ -251,8 +340,8 @@ pub mod scheme {
 
     use core::mem::size_of;
 
-    pub use syscall::{Scheme, SchemeMut, SchemeBlock, SchemeBlockMut};
     use syscall::Packet;
+    pub use syscall::{Scheme, SchemeBlock, SchemeBlockMut, SchemeMut};
 
     #[repr(transparent)]
     #[derive(Clone, Copy, Default)]
@@ -267,13 +356,19 @@ pub mod scheme {
             scheme.handle(&mut self.0);
             Response(self.0)
         }
-        pub fn handle_scheme_block(mut self, scheme: &mut impl SchemeBlock) -> Result<Response, Request> {
+        pub fn handle_scheme_block(
+            mut self,
+            scheme: &mut impl SchemeBlock,
+        ) -> Result<Response, Request> {
             match scheme.handle(&mut self.0) {
                 Some(code) => Ok(Response(Packet { a: code, ..self.0 })),
                 None => Err(self),
             }
         }
-        pub fn handle_scheme_block_mut(mut self, scheme: &mut impl SchemeBlockMut) -> Result<Response, Request> {
+        pub fn handle_scheme_block_mut(
+            mut self,
+            scheme: &mut impl SchemeBlockMut,
+        ) -> Result<Response, Request> {
             match scheme.handle(&mut self.0) {
                 Some(code) => Ok(Response(Packet { a: code, ..self.0 })),
                 None => Err(self),
@@ -301,16 +396,24 @@ pub mod scheme {
 
     // TODO: Support uninitialized memory
     #[inline]
-    pub fn read_requests(socket: usize, buf: &mut [Request], behavior: SignalBehavior) -> Result<usize> {
+    pub fn read_requests(
+        socket: usize,
+        buf: &mut [Request],
+        behavior: SignalBehavior,
+    ) -> Result<usize> {
         let len = buf.len().checked_mul(size_of::<Request>()).unwrap();
 
         let bytes_read = loop {
-            match call::read(socket, unsafe { core::slice::from_raw_parts_mut(buf.as_mut_ptr().cast(), len) }) {
+            match call::read(socket, unsafe {
+                core::slice::from_raw_parts_mut(buf.as_mut_ptr().cast(), len)
+            }) {
                 Ok(n) => break n,
-                error @ Err(Error { errno: errno::EINTR }) => match behavior {
+                error @ Err(Error {
+                    errno: errno::EINTR,
+                }) => match behavior {
                     SignalBehavior::Restart => continue,
                     SignalBehavior::Interrupt => return error,
-                }
+                },
                 Err(err) => return Err(err),
             }
         };
@@ -321,16 +424,27 @@ pub mod scheme {
     }
 
     #[inline]
-    pub fn write_responses(socket: usize, buf: &[Response], behavior: SignalBehavior) -> Result<usize> {
-        let bytes = unsafe { core::slice::from_raw_parts(buf.as_ptr().cast(), buf.len().checked_mul(size_of::<Response>()).unwrap()) };
+    pub fn write_responses(
+        socket: usize,
+        buf: &[Response],
+        behavior: SignalBehavior,
+    ) -> Result<usize> {
+        let bytes = unsafe {
+            core::slice::from_raw_parts(
+                buf.as_ptr().cast(),
+                buf.len().checked_mul(size_of::<Response>()).unwrap(),
+            )
+        };
 
         let bytes_written = loop {
             match call::write(socket, bytes) {
                 Ok(n) => break n,
-                error @ Err(Error { errno: errno::EINTR }) => match behavior {
+                error @ Err(Error {
+                    errno: errno::EINTR,
+                }) => match behavior {
                     SignalBehavior::Restart => continue,
                     SignalBehavior::Interrupt => return error,
-                }
+                },
                 Err(err) => return Err(err),
             }
         };
