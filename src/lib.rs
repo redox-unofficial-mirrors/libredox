@@ -6,20 +6,49 @@ use syscall::error::{Error, Result};
 
 pub mod flag {
     pub use libc::{
-        O_ACCMODE, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_NONBLOCK, O_RDONLY, O_RDWR, O_WRONLY,
+        O_ACCMODE, O_APPEND, O_ASYNC, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_FSYNC, O_NOFOLLOW,
+        O_NONBLOCK, O_PATH, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY,
     };
 
     pub use libc::{CLOCK_MONOTONIC, CLOCK_REALTIME};
 
     pub use libc::{SIG_BLOCK, SIG_SETMASK, SIG_UNBLOCK};
 
-    pub use libc::{SIGUSR1, SIGUSR2};
+    pub use libc::{
+        SIGABRT,
+        SIGALRM,
+        SIGBUS,
+        SIGCHLD,
+        SIGCONT,
+        SIGFPE,
+        // TODO: Const rather than use, to convert to u32
+        SIGHUP,
+        SIGILL,
+        SIGINT,
+        SIGIO,
+        SIGKILL,
+        SIGPIPE,
+        SIGPROF,
+        SIGPWR,
+        SIGQUIT,
+        SIGSEGV,
+        SIGSTKFLT,
+        SIGSYS,
+        SIGTERM,
+        SIGTRAP,
+        SIGTSTP,
+        SIGTTIN,
+        SIGTTOU,
+        SIGURG,
+        SIGUSR1,
+        SIGUSR2,
+        SIGVTALRM,
+        SIGWINCH,
+        SIGXFSZ,
+    };
 
     #[cfg(target_os = "redox")]
-    pub use libc::{O_EXLOCK, O_SHLOCK};
-
-    #[cfg(target_os = "redox")]
-    pub const O_STAT: i32 = syscall::flag::O_STAT as i32;
+    pub use libc::{O_EXLOCK, O_SHLOCK, O_SYMLINK};
 
     pub const MAP_SHARED: u32 = libc::MAP_SHARED as u32;
     pub const MAP_PRIVATE: u32 = libc::MAP_PRIVATE as u32;
@@ -32,12 +61,26 @@ pub mod flag {
 
 pub mod errno {
     pub use libc::{
-        EACCES, EAGAIN, EBADF, EBADFD, EBUSY, EINTR, ENODEV, EPERM, EPIPE, ESPIPE, ESRCH,
-        EWOULDBLOCK,
+        E2BIG, EACCES, EADDRINUSE, EADDRNOTAVAIL, EADV, EAFNOSUPPORT, EAGAIN, EALREADY, EBADE,
+        EBADF, EBADFD, EBADMSG, EBADR, EBADRQC, EBADSLT, EBFONT, EBUSY, ECANCELED, ECHILD, ECHRNG,
+        ECOMM, ECONNABORTED, ECONNREFUSED, ECONNRESET, EDEADLK, EDEADLOCK, EDESTADDRREQ, EDOM,
+        EDOTDOT, EDQUOT, EEXIST, EFAULT, EFBIG, EHOSTDOWN, EHOSTUNREACH, EIDRM, EILSEQ,
+        EINPROGRESS, EINTR, EINVAL, EIO, EISCONN, EISDIR, EISNAM, EKEYEXPIRED, EKEYREJECTED,
+        EKEYREVOKED, EL2HLT, EL2NSYNC, EL3HLT, EL3RST, ELIBACC, ELIBBAD, ELIBEXEC, ELIBMAX,
+        ELIBSCN, ELNRNG, ELOOP, EMEDIUMTYPE, EMFILE, EMLINK, EMSGSIZE, EMULTIHOP, ENAMETOOLONG,
+        ENAVAIL, ENETDOWN, ENETRESET, ENETUNREACH, ENFILE, ENOANO, ENOBUFS, ENOCSI, ENODEV, ENOENT,
+        ENOEXEC, ENOKEY, ENOLCK, ENOMEDIUM, ENOMEM, ENOMSG, ENONET, ENOPKG, ENOPROTOOPT, ENOSPC,
+        ENOSR, ENOSTR, ENOSYS, ENOTBLK, ENOTCONN, ENOTDIR, ENOTEMPTY, ENOTNAM, ENOTRECOVERABLE,
+        ENOTSOCK, ENOTTY, ENOTUNIQ, ENXIO, EOPNOTSUPP, EOVERFLOW, EOWNERDEAD, EPERM, EPFNOSUPPORT,
+        EPIPE, EPROTO, EPROTONOSUPPORT, EPROTOTYPE, ERANGE, EREMCHG, EREMOTE, EREMOTEIO, ERESTART,
+        EROFS, ESHUTDOWN, ESOCKTNOSUPPORT, ESPIPE, ESRCH, ESRMNT, ESTALE, ESTRPIPE, ETIME,
+        ETIMEDOUT, ETOOMANYREFS, ETXTBSY, EUCLEAN, EUNATCH, EUSERS, EWOULDBLOCK, EXDEV, EXFULL,
     };
 }
 pub mod data {
     pub use libc::sigaction as SigAction;
+    pub use libc::stat as Stat;
+    pub use libc::statvfs as StatVfs;
     pub use libc::timespec as TimeSpec;
 
     #[cfg(target_os = "redox")]
@@ -63,6 +106,9 @@ extern "C" {
     fn redox_fchmod_v1(fd: usize, new_mode: u16) -> RawResult;
     fn redox_fchown_v1(fd: usize, new_uid: u32, new_gid: u32) -> RawResult;
     fn redox_fpath_v1(fd: usize, dst_base: *mut u8, dst_len: usize) -> RawResult;
+    fn redox_fstat_v1(fd: usize, dst: *mut data::Stat) -> RawResult;
+    fn redox_fstatvfs_v1(fd: usize, dst: *mut data::StatVfs) -> RawResult;
+    fn redox_futimens_v1(fd: usize, times: *const data::TimeSpec) -> RawResult;
     fn redox_close_v1(fd: usize) -> RawResult;
 
     // NOTE: While the Redox kernel currently doesn't distinguish between threads and processes,
@@ -158,6 +204,13 @@ impl Fd {
     pub fn chown(&self, new_uid: u32, new_gid: u32) -> Result<()> {
         call::fchown(self.raw(), new_uid, new_gid)
     }
+    pub fn stat(&self) -> Result<data::Stat> {
+        call::fstat(self.raw())
+    }
+    pub fn statvfs(&self) -> Result<data::StatVfs> {
+        call::fstatvfs(self.raw())
+    }
+    // TODO: futimens
     #[inline]
     pub fn close(self) -> Result<()> {
         call::close(self.into_raw())
@@ -172,6 +225,8 @@ impl Drop for Fd {
 
 #[cfg(feature = "call")]
 pub mod call {
+    use core::mem::MaybeUninit;
+
     use super::*;
 
     /// flags and mode are binary compatible with libc
@@ -204,9 +259,7 @@ pub mod call {
     }
     #[inline]
     pub fn write(raw_fd: usize, buf: &[u8]) -> Result<usize> {
-        Ok(Error::demux(unsafe {
-            redox_write_v1(raw_fd, buf.as_ptr(), buf.len())
-        })?)
+        Error::demux(unsafe { redox_write_v1(raw_fd, buf.as_ptr(), buf.len()) })
     }
     #[inline]
     pub fn fsync(raw_fd: usize) -> Result<()> {
@@ -214,7 +267,7 @@ pub mod call {
     }
     #[inline]
     pub fn fdatasync(raw_fd: usize) -> Result<()> {
-        Ok(Error::demux(unsafe { redox_fdatasync_v1(raw_fd) })?).map(|_| ())
+        Error::demux(unsafe { redox_fdatasync_v1(raw_fd) }).map(|_| ())
     }
     #[inline]
     pub fn fchmod(raw_fd: usize, new_mode: u16) -> Result<()> {
@@ -228,9 +281,28 @@ pub mod call {
     }
     #[inline]
     pub fn fpath(raw_fd: usize, buf: &mut [u8]) -> Result<usize> {
-        Ok(Error::demux(unsafe {
-            redox_fpath_v1(raw_fd, buf.as_mut_ptr(), buf.len())
-        })?)
+        Error::demux(unsafe { redox_fpath_v1(raw_fd, buf.as_mut_ptr(), buf.len()) })
+    }
+    #[inline]
+    pub fn fstat(raw_fd: usize) -> Result<data::Stat> {
+        unsafe {
+            let mut ret = MaybeUninit::uninit();
+            Error::demux(redox_fstat_v1(raw_fd, ret.as_mut_ptr()))?;
+            Ok(ret.assume_init())
+        }
+    }
+    #[inline]
+    pub fn fstatvfs(raw_fd: usize) -> Result<data::StatVfs> {
+        unsafe {
+            let mut ret = MaybeUninit::uninit();
+            Error::demux(redox_fstatvfs_v1(raw_fd, ret.as_mut_ptr()))?;
+            Ok(ret.assume_init())
+        }
+    }
+    #[inline]
+    pub fn futimens(raw_fd: usize, times: &[data::TimeSpec; 2]) -> Result<()> {
+        Error::demux(unsafe { redox_futimens_v1(raw_fd, times.as_ptr()) })?;
+        Ok(())
     }
     #[inline]
     pub fn close(raw_fd: usize) -> Result<()> {
@@ -273,8 +345,12 @@ pub mod call {
         Error::demux(unsafe { redox_kill_v1(pid, signal) }).map(|_| ())
     }
     #[inline]
-    pub fn clock_gettime(clock: i32, ts: &mut data::TimeSpec) -> Result<()> {
-        Error::demux(unsafe { redox_clock_gettime_v1(clock as usize, ts) }).map(|_| ())
+    pub fn clock_gettime(clock: i32) -> Result<data::TimeSpec> {
+        unsafe {
+            let mut ret = MaybeUninit::uninit();
+            Error::demux(redox_clock_gettime_v1(clock as usize, ret.as_mut_ptr()))?;
+            Ok(ret.assume_init())
+        }
     }
     #[inline]
     pub fn sigprocmask(
