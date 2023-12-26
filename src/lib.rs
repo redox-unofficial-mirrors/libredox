@@ -1,8 +1,87 @@
 //! Redox-specific system library.
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 
-pub use syscall::error;
-use syscall::error::{Error, Result};
+use self::error::{Error, Result};
+
+pub mod error {
+    use super::*;
+
+    #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
+    // TODO: Define as enum?
+    pub struct Error {
+        // TODO: NonZeroU16? "success" is not an error.
+        errno: u16,
+    }
+
+    impl Error {
+        pub fn new(errno: i32) -> Self {
+            Self {
+                errno: errno.try_into().unwrap_or(u16::MAX),
+            }
+        }
+        pub fn errno(self) -> i32 {
+            self.errno.into()
+        }
+        pub fn is_wouldblock(self) -> bool {
+            matches!(self.errno(), errno::EAGAIN | errno::EWOULDBLOCK)
+        }
+        pub fn is_interrupt(self) -> bool {
+            self.errno() == errno::EINTR
+        }
+        pub fn mux(res: Result<usize, Self>) -> usize {
+            match res {
+                // TODO: Ensure success cannot overlap with error values.
+                Ok(success) => success,
+                Err(error) => usize::wrapping_neg(usize::from(error.errno)),
+            }
+        }
+        pub fn demux(res: usize) -> Result<usize, Self> {
+            if res > usize::wrapping_neg(4096) {
+                Err(Self {
+                    errno: res.wrapping_neg().try_into().expect("2^BITS - res < 4096"),
+                })
+            } else {
+                Ok(res)
+            }
+        }
+        pub fn description(&self) -> &'static str {
+            syscall::error::STR_ERROR
+                .get(usize::from(self.errno))
+                .copied()
+                .unwrap_or("Unknown")
+        }
+    }
+
+    impl core::fmt::Display for Error {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            write!(f, "{}", self.description())
+        }
+    }
+    impl core::fmt::Debug for Error {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            write!(f, "Error `{}` {}", self.description(), self.errno)
+        }
+    }
+    #[cfg(feature = "redox_syscall_exports")]
+    impl From<syscall::Error> for Error {
+        fn from(value: syscall::Error) -> Self {
+            Self {
+                errno: value.errno.try_into().unwrap_or(u16::MAX),
+            }
+        }
+    }
+    #[cfg(feature = "std")]
+    impl From<Error> for std::io::Error {
+        fn from(value: Error) -> Self {
+            Self::from_raw_os_error(value.errno.into())
+        }
+    }
+
+    #[cfg(feature = "std")]
+    impl std::error::Error for Error {}
+
+    pub type Result<T, E = Error> = core::result::Result<T, E>;
+}
 
 pub mod flag {
     pub use libc::{
@@ -82,6 +161,25 @@ pub mod data {
     pub use libc::stat as Stat;
     pub use libc::statvfs as StatVfs;
     pub use libc::timespec as TimeSpec;
+
+    // TODO: Remove
+    pub fn timespec_from_mut_bytes(bytes: &mut [u8]) -> &mut TimeSpec {
+        assert!(bytes.len() >= core::mem::size_of::<TimeSpec>());
+        assert_eq!(
+            bytes.as_ptr() as usize % core::mem::align_of::<TimeSpec>(),
+            0
+        );
+        unsafe { &mut *bytes.as_mut_ptr().cast() }
+    }
+    // TODO: Remove
+    pub fn timespec_from_bytes(bytes: &[u8]) -> &TimeSpec {
+        assert!(bytes.len() >= core::mem::size_of::<TimeSpec>());
+        assert_eq!(
+            bytes.as_ptr() as usize % core::mem::align_of::<TimeSpec>(),
+            0
+        );
+        unsafe { &*bytes.as_ptr().cast() }
+    }
 
     #[cfg(target_os = "redox")]
     pub use libc::sigset_t as SigSet;
