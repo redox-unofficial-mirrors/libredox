@@ -12,7 +12,6 @@ exclude = ["target"]
 
 [features]
 default = ["call"]
-scheme = ["call"]
 call = []
 
 [dependencies]
