@@ -1,6 +1,7 @@
 //! Redox-specific system library.
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(feature = "call")]
 use self::error::{Error, Result};
 
 pub mod error {
@@ -44,25 +45,42 @@ pub mod error {
                 Ok(res)
             }
         }
-        pub fn description(&self) -> &'static str {
-            syscall::error::STR_ERROR
-                .get(usize::from(self.errno))
-                .copied()
-                .unwrap_or("Unknown")
+        #[cfg(feature = "call")]
+        pub fn description(self, buf: &mut [u8]) -> &str {
+            call::strerror(self.errno, buf).map_or("unknown error", |(desc, _)| desc)
         }
     }
 
     impl core::fmt::Display for Error {
         fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            write!(f, "{}", self.description())
+            #[cfg(feature = "call")]
+            {
+                write!(f, "{}", self.description(&mut [0; 256]))
+            }
+            #[cfg(not(feature = "call"))]
+            {
+                write!(f, "Error {} (strerror unavailable)", self.errno)
+            }
         }
     }
     impl core::fmt::Debug for Error {
         fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            write!(f, "Error `{}` {}", self.description(), self.errno)
+            #[cfg(feature = "call")]
+            {
+                write!(
+                    f,
+                    "Error `{}` {}",
+                    self.description(&mut [0; 256]),
+                    self.errno
+                )
+            }
+            #[cfg(not(feature = "call"))]
+            {
+                write!(f, "Error {} (strerror unavailable)", self.errno)
+            }
         }
     }
-    #[cfg(feature = "redox_syscall_exports")]
+    #[cfg(feature = "redox_syscall")]
     impl From<syscall::Error> for Error {
         fn from(value: syscall::Error) -> Self {
             Self {
@@ -189,8 +207,10 @@ pub mod data {
     pub type SigSet = u64;
 }
 
+#[cfg(feature = "call")]
 type RawResult = usize;
 
+#[cfg(feature = "call")]
 extern "C" {
     // NOTE: Although there are version suffixes, there'd have to be strong reasons for adding new
     // version.
@@ -241,6 +261,8 @@ extern "C" {
         offset: u64,
     ) -> RawResult;
     fn redox_munmap_v1(addr: *mut (), unaligned_len: usize) -> RawResult;
+
+    fn redox_strerror_v1(dst: *mut u8, dst_len: *mut usize, error: u32) -> RawResult;
 }
 
 #[cfg(feature = "call")]
@@ -505,5 +527,22 @@ pub mod call {
     #[inline]
     pub unsafe fn munmap(addr: *mut (), length: usize) -> Result<()> {
         Error::demux(redox_munmap_v1(addr, length)).map(|_| ())
+    }
+
+    #[inline]
+    pub fn strerror(error: u16, desc: &mut [u8]) -> Option<(&str, usize)> {
+        unsafe {
+            let mut len_inout = desc.len();
+            let copied_len = Error::demux(redox_strerror_v1(
+                desc.as_mut_ptr(),
+                &mut len_inout,
+                error.into(),
+            ))
+            .ok()?;
+            Some((
+                core::str::from_utf8_unchecked(&desc[..copied_len]),
+                len_inout,
+            ))
+        }
     }
 }

@@ -11,12 +11,11 @@ exclude = ["target"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["call", "std", "redox_syscall_exports"]
+default = ["call", "std", "redox_syscall"]
 call = []
 std = []
-redox_syscall_exports = []
 
 [dependencies]
 bitflags = "2"
 libc = "0.2"
-redox_syscall = "0.4"
+redox_syscall = { version = "0.4", optional = true }
