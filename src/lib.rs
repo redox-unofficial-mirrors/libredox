@@ -88,6 +88,12 @@ pub mod error {
             }
         }
     }
+    #[cfg(feature = "redox_syscall")]
+    impl From<Error> for syscall::Error {
+        fn from(value: Error) -> Self {
+            Self::new(value.errno())
+        }
+    }
     #[cfg(feature = "std")]
     impl From<Error> for std::io::Error {
         fn from(value: Error) -> Self {
