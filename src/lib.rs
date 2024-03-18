@@ -185,6 +185,7 @@ pub mod data {
     pub use libc::stat as Stat;
     pub use libc::statvfs as StatVfs;
     pub use libc::timespec as TimeSpec;
+    pub use libc::iovec as IoVec;
 
     // TODO: Remove
     pub fn timespec_from_mut_bytes(bytes: &mut [u8]) -> &mut TimeSpec {
@@ -217,6 +218,7 @@ pub mod data {
 type RawResult = usize;
 
 #[cfg(feature = "call")]
+#[allow(dead_code)]
 extern "C" {
     // NOTE: Although there are version suffixes, there'd have to be strong reasons for adding new
     // version.
@@ -245,6 +247,7 @@ extern "C" {
     fn redox_get_egid_v1() -> RawResult;
     fn redox_get_rgid_v1() -> RawResult;
     fn redox_setrens_v1(rns: usize, ens: usize) -> RawResult;
+    fn redox_mkns_v1(names: *const data::IoVec, num_names: usize, _flags: u32) -> RawResult;
 
     fn redox_kill_v1(pid: usize, signal: u32) -> RawResult;
     fn redox_waitpid_v1(pid: usize, status: *mut i32, options: u32) -> RawResult;
@@ -549,6 +552,17 @@ pub mod call {
                 core::str::from_utf8_unchecked(&desc[..copied_len]),
                 len_inout,
             ))
+        }
+    }
+
+    #[inline]
+    #[cfg(feature = "mkns")]
+    pub fn mkns(names: &[ioslice::IoSlice]) -> Result<usize> {
+        // no-op
+        let iovecs = ioslice::IoSlice::cast_to_raw_iovecs(names);
+
+        unsafe {
+            Error::demux(redox_mkns_v1(iovecs.as_ptr(), iovecs.len(), 0))
         }
     }
 }
