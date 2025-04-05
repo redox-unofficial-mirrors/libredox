@@ -223,6 +223,7 @@ extern "C" {
     // NOTE: Although there are version suffixes, there'd have to be strong reasons for adding new
     // version.
     fn redox_open_v1(path_base: *const u8, path_len: usize, flags: u32, mode: u16) -> RawResult;
+    fn redox_openat_v1(fd: usize, buf: *const u8, path_len: usize, flags: u32) -> RawResult;
     fn redox_dup_v1(fd: usize, buf: *const u8, len: usize) -> RawResult;
     fn redox_dup2_v1(old_fd: usize, new_fd: usize, buf: *const u8, len: usize) -> RawResult;
     fn redox_read_v1(fd: usize, dst_base: *mut u8, dst_len: usize) -> RawResult;
@@ -282,6 +283,9 @@ impl Fd {
     #[inline]
     pub fn open(path: &str, flags: i32, mode: u16) -> Result<Self> {
         Ok(Self(call::open(path, flags, mode)?))
+    }
+    pub fn openat(&self, path: &str, flags: i32) -> Result<Self> {
+        Ok(Self(call::openat(self.raw(), path, flags)?))
     }
     #[inline]
     pub fn dup(&self, buf: &[u8]) -> Result<usize> {
@@ -365,6 +369,14 @@ pub mod call {
         Ok(Error::demux(unsafe {
             redox_open_v1(path.as_ptr(), path.len(), flags as u32, mode)
         })?)
+    }
+    #[inline]
+    pub fn openat(fd: usize, path: impl AsRef<[u8]>, flags: i32) -> Result<usize> {
+        let path = path.as_ref();
+        Ok(Error::demux(unsafe {
+            redox_openat_v1(fd, path.as_ptr(), path.len(), flags as u32)
+        })?)
+
     }
     #[inline]
     pub fn dup(fd: usize, buf: impl AsRef<[u8]>) -> Result<usize> {
