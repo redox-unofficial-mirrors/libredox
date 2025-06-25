@@ -181,11 +181,11 @@ pub mod errno {
     };
 }
 pub mod data {
+    pub use libc::iovec as IoVec;
     pub use libc::sigaction as SigAction;
     pub use libc::stat as Stat;
     pub use libc::statvfs as StatVfs;
     pub use libc::timespec as TimeSpec;
-    pub use libc::iovec as IoVec;
 
     // TODO: Remove
     pub fn timespec_from_mut_bytes(bytes: &mut [u8]) -> &mut TimeSpec {
@@ -247,6 +247,10 @@ extern "C" {
     fn redox_get_ruid_v1() -> RawResult;
     fn redox_get_egid_v1() -> RawResult;
     fn redox_get_rgid_v1() -> RawResult;
+
+    // This function is used to get the credentials, pid, euid, egid etc. of the process with the target pid.
+    fn redox_get_proc_credentials_v0(target_pid: usize, buf: &mut [u8]) -> RawResult;
+
     fn redox_setrens_v1(rns: usize, ens: usize) -> RawResult;
     fn redox_mkns_v1(names: *const data::IoVec, num_names: usize, _flags: u32) -> RawResult;
 
@@ -376,7 +380,6 @@ pub mod call {
         Ok(Error::demux(unsafe {
             redox_openat_v1(fd, path.as_ptr(), path.len(), flags as u32)
         })?)
-
     }
     #[inline]
     pub fn dup(fd: usize, buf: impl AsRef<[u8]>) -> Result<usize> {
@@ -473,6 +476,13 @@ pub mod call {
     pub fn getpid() -> Result<usize> {
         Error::demux(unsafe { redox_get_pid_v1() })
     }
+
+    #[inline]
+    // [u8; size_of::<crate::protocol::ProcMeta>()]
+    pub fn get_proc_credentials(target_pid: usize, buf: &mut [u8]) -> Result<usize> {
+        Error::demux(unsafe { redox_get_proc_credentials_v0(target_pid, buf) })
+    }
+
     #[inline]
     pub fn setrens(rns: usize, ens: usize) -> Result<usize> {
         Error::demux(unsafe { redox_setrens_v1(rns, ens) })
@@ -573,8 +583,6 @@ pub mod call {
         // no-op
         let iovecs = ioslice::IoSlice::cast_to_raw_iovecs(names);
 
-        unsafe {
-            Error::demux(redox_mkns_v1(iovecs.as_ptr(), iovecs.len(), 0))
-        }
+        unsafe { Error::demux(redox_mkns_v1(iovecs.as_ptr(), iovecs.len(), 0)) }
     }
 }
