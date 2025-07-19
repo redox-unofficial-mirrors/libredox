@@ -223,7 +223,13 @@ extern "C" {
     // NOTE: Although there are version suffixes, there'd have to be strong reasons for adding new
     // version.
     fn redox_open_v1(path_base: *const u8, path_len: usize, flags: u32, mode: u16) -> RawResult;
-    fn redox_openat_v1(fd: usize, buf: *const u8, path_len: usize, flags: u32, fcntl_flags: u32) -> RawResult;
+    fn redox_openat_v1(
+        fd: usize,
+        buf: *const u8,
+        path_len: usize,
+        flags: u32,
+        fcntl_flags: u32,
+    ) -> RawResult;
     fn redox_dup_v1(fd: usize, buf: *const u8, len: usize) -> RawResult;
     fn redox_dup2_v1(old_fd: usize, new_fd: usize, buf: *const u8, len: usize) -> RawResult;
     fn redox_read_v1(fd: usize, dst_base: *mut u8, dst_len: usize) -> RawResult;
@@ -249,7 +255,8 @@ extern "C" {
     fn redox_get_rgid_v1() -> RawResult;
 
     // This function is used to get the credentials, pid, euid, egid etc. of the process with the target pid.
-    fn redox_get_proc_credentials_v0(target_pid: usize, buf: &mut [u8]) -> RawResult;
+    fn redox_get_proc_credentials_v1(cap_fd: usize, target_pid: usize, buf: &mut [u8])
+        -> RawResult;
 
     fn redox_setrens_v1(rns: usize, ens: usize) -> RawResult;
     fn redox_mkns_v1(names: *const data::IoVec, num_names: usize, _flags: u32) -> RawResult;
@@ -277,6 +284,15 @@ extern "C" {
     fn redox_munmap_v1(addr: *mut (), unaligned_len: usize) -> RawResult;
 
     fn redox_strerror_v1(dst: *mut u8, dst_len: *mut usize, error: u32) -> RawResult;
+
+    fn redox_sys_call_v0(
+        fd: usize,
+        payload: *mut u8,
+        payload_len: usize,
+        flags: usize,
+        metadata: *const u64,
+        metadata_len: usize,
+    ) -> RawResult;
 }
 
 #[cfg(feature = "call")]
@@ -363,6 +379,7 @@ impl Drop for Fd {
 #[cfg(feature = "call")]
 pub mod call {
     use core::mem::MaybeUninit;
+    use redox_rt::protocol::SocketCall;
 
     use super::*;
 
@@ -375,7 +392,12 @@ pub mod call {
         })?)
     }
     #[inline]
-    pub fn openat(fd: usize, path: impl AsRef<[u8]>, flags: i32, fcntl_flags: u32) -> Result<usize> {
+    pub fn openat(
+        fd: usize,
+        path: impl AsRef<[u8]>,
+        flags: i32,
+        fcntl_flags: u32,
+    ) -> Result<usize> {
         let path = path.as_ref();
         Ok(Error::demux(unsafe {
             redox_openat_v1(fd, path.as_ptr(), path.len(), flags as u32, fcntl_flags)
@@ -479,8 +501,8 @@ pub mod call {
 
     #[inline]
     // [u8; size_of::<crate::protocol::ProcMeta>()]
-    pub fn get_proc_credentials(target_pid: usize, buf: &mut [u8]) -> Result<usize> {
-        Error::demux(unsafe { redox_get_proc_credentials_v0(target_pid, buf) })
+    pub fn get_proc_credentials(cap_fd: usize, target_pid: usize, buf: &mut [u8]) -> Result<usize> {
+        Error::demux(unsafe { redox_get_proc_credentials_v1(cap_fd, target_pid, buf) })
     }
 
     #[inline]
@@ -584,5 +606,20 @@ pub mod call {
         let iovecs = ioslice::IoSlice::cast_to_raw_iovecs(names);
 
         unsafe { Error::demux(redox_mkns_v1(iovecs.as_ptr(), iovecs.len(), 0)) }
+    }
+
+    #[inline]
+    pub fn get_socket_token(fd: usize, buf: &mut [u8]) -> Result<usize> {
+        let metadata = [SocketCall::GetToken as u64];
+        Error::demux(unsafe {
+            redox_sys_call_v0(
+                fd,
+                buf.as_mut_ptr(),
+                buf.len(),
+                0,
+                metadata.as_ptr(),
+                metadata.len(),
+            )
+        })
     }
 }
