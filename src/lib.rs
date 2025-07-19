@@ -293,6 +293,8 @@ extern "C" {
         metadata: *const u64,
         metadata_len: usize,
     ) -> RawResult;
+
+    fn redox_get_socket_token_v0(fd: usize, payload: *mut u8, payload_len: usize) -> RawResult;
 }
 
 #[cfg(feature = "call")]
@@ -379,7 +381,6 @@ impl Drop for Fd {
 #[cfg(feature = "call")]
 pub mod call {
     use core::mem::MaybeUninit;
-    use redox_rt::protocol::SocketCall;
 
     use super::*;
 
@@ -610,16 +611,6 @@ pub mod call {
 
     #[inline]
     pub fn get_socket_token(fd: usize, buf: &mut [u8]) -> Result<usize> {
-        let metadata = [SocketCall::GetToken as u64];
-        Error::demux(unsafe {
-            redox_sys_call_v0(
-                fd,
-                buf.as_mut_ptr(),
-                buf.len(),
-                0,
-                metadata.as_ptr(),
-                metadata.len(),
-            )
-        })
+        Error::demux(unsafe { redox_get_socket_token_v0(fd, buf.as_mut_ptr(), buf.len()) })
     }
 }
