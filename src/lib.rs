@@ -370,6 +370,61 @@ impl Fd {
     pub fn close(self) -> Result<()> {
         call::close(self.into_raw())
     }
+
+    #[inline]
+    pub fn call_ro(
+        &self,
+        payload: &mut [u8],
+        flags: syscall::CallFlags,
+        metadata: &[u64],
+    ) -> Result<usize> {
+        Ok(Error::demux(unsafe {
+            redox_sys_call_v0(
+                self.raw(),
+                payload.as_mut_ptr(),
+                payload.len(),
+                (flags | syscall::CallFlags::READ).bits(),
+                metadata.as_ptr(),
+                metadata.len(),
+            )
+        })?)
+    }
+    #[inline]
+    pub fn call_wo(
+        &self,
+        payload: &[u8],
+        flags: syscall::CallFlags,
+        metadata: &[u64],
+    ) -> Result<usize> {
+        Ok(Error::demux(unsafe {
+            redox_sys_call_v0(
+                self.raw(),
+                payload.as_ptr() as *mut u8,
+                payload.len(),
+                (flags | syscall::CallFlags::WRITE).bits(),
+                metadata.as_ptr(),
+                metadata.len(),
+            )
+        })?)
+    }
+    #[inline]
+    pub fn call_rw(
+        &self,
+        payload: &mut [u8],
+        flags: syscall::CallFlags,
+        metadata: &[u64],
+    ) -> Result<usize> {
+        Ok(Error::demux(unsafe {
+            redox_sys_call_v0(
+                self.raw(),
+                payload.as_mut_ptr(),
+                payload.len(),
+                (flags | syscall::CallFlags::READ | syscall::CallFlags::WRITE).bits(),
+                metadata.as_ptr(),
+                metadata.len(),
+            )
+        })?)
+    }
 }
 #[cfg(feature = "call")]
 impl Drop for Fd {
