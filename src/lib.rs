@@ -378,16 +378,7 @@ impl Fd {
         flags: syscall::CallFlags,
         metadata: &[u64],
     ) -> Result<usize> {
-        Ok(Error::demux(unsafe {
-            redox_sys_call_v0(
-                self.raw(),
-                payload.as_mut_ptr(),
-                payload.len(),
-                (flags | syscall::CallFlags::READ).bits(),
-                metadata.as_ptr(),
-                metadata.len(),
-            )
-        })?)
+        call::call_ro(self.raw(), payload, flags, metadata)
     }
     #[inline]
     pub fn call_wo(
@@ -396,16 +387,7 @@ impl Fd {
         flags: syscall::CallFlags,
         metadata: &[u64],
     ) -> Result<usize> {
-        Ok(Error::demux(unsafe {
-            redox_sys_call_v0(
-                self.raw(),
-                payload.as_ptr() as *mut u8,
-                payload.len(),
-                (flags | syscall::CallFlags::WRITE).bits(),
-                metadata.as_ptr(),
-                metadata.len(),
-            )
-        })?)
+        call::call_wo(self.raw(), payload, flags, metadata)
     }
     #[inline]
     pub fn call_rw(
@@ -414,16 +396,7 @@ impl Fd {
         flags: syscall::CallFlags,
         metadata: &[u64],
     ) -> Result<usize> {
-        Ok(Error::demux(unsafe {
-            redox_sys_call_v0(
-                self.raw(),
-                payload.as_mut_ptr(),
-                payload.len(),
-                (flags | syscall::CallFlags::READ | syscall::CallFlags::WRITE).bits(),
-                metadata.as_ptr(),
-                metadata.len(),
-            )
-        })?)
+        call::call_rw(self.raw(), payload, flags, metadata)
     }
 }
 #[cfg(feature = "call")]
@@ -530,6 +503,60 @@ pub mod call {
     pub fn close(raw_fd: usize) -> Result<()> {
         Error::demux(unsafe { redox_close_v1(raw_fd) })?;
         Ok(())
+    }
+    #[inline]
+    pub fn call_ro(
+        fd: usize,
+        payload: &mut [u8],
+        flags: syscall::CallFlags,
+        metadata: &[u64],
+    ) -> Result<usize> {
+        Ok(Error::demux(unsafe {
+            redox_sys_call_v0(
+                fd,
+                payload.as_mut_ptr(),
+                payload.len(),
+                (flags | syscall::CallFlags::READ).bits(),
+                metadata.as_ptr(),
+                metadata.len(),
+            )
+        })?)
+    }
+    #[inline]
+    pub fn call_wo(
+        fd: usize,
+        payload: &[u8],
+        flags: syscall::CallFlags,
+        metadata: &[u64],
+    ) -> Result<usize> {
+        Ok(Error::demux(unsafe {
+            redox_sys_call_v0(
+                fd,
+                payload.as_ptr() as *mut u8,
+                payload.len(),
+                (flags | syscall::CallFlags::WRITE).bits(),
+                metadata.as_ptr(),
+                metadata.len(),
+            )
+        })?)
+    }
+    #[inline]
+    pub fn call_rw(
+        fd: usize,
+        payload: &mut [u8],
+        flags: syscall::CallFlags,
+        metadata: &[u64],
+    ) -> Result<usize> {
+        Ok(Error::demux(unsafe {
+            redox_sys_call_v0(
+                fd,
+                payload.as_mut_ptr(),
+                payload.len(),
+                (flags | syscall::CallFlags::READ | syscall::CallFlags::WRITE).bits(),
+                metadata.as_ptr(),
+                metadata.len(),
+            )
+        })?)
     }
 
     #[inline]
