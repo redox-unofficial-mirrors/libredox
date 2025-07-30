@@ -371,6 +371,7 @@ impl Fd {
         call::close(self.into_raw())
     }
 
+    #[cfg(feature = "redox_syscall")]
     #[inline]
     pub fn call_ro(
         &self,
@@ -380,6 +381,7 @@ impl Fd {
     ) -> Result<usize> {
         call::call_ro(self.raw(), payload, flags, metadata)
     }
+    #[cfg(feature = "redox_syscall")]
     #[inline]
     pub fn call_wo(
         &self,
@@ -389,6 +391,7 @@ impl Fd {
     ) -> Result<usize> {
         call::call_wo(self.raw(), payload, flags, metadata)
     }
+    #[cfg(feature = "redox_syscall")]
     #[inline]
     pub fn call_rw(
         &self,
@@ -504,6 +507,7 @@ pub mod call {
         Error::demux(unsafe { redox_close_v1(raw_fd) })?;
         Ok(())
     }
+    #[cfg(feature = "redox_syscall")]
     #[inline]
     pub fn call_ro(
         fd: usize,
@@ -522,6 +526,7 @@ pub mod call {
             )
         })?)
     }
+    #[cfg(feature = "redox_syscall")]
     #[inline]
     pub fn call_wo(
         fd: usize,
@@ -540,6 +545,7 @@ pub mod call {
             )
         })?)
     }
+    #[cfg(feature = "redox_syscall")]
     #[inline]
     pub fn call_rw(
         fd: usize,
