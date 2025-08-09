@@ -160,6 +160,10 @@ pub mod flag {
     pub const PROT_READ: u32 = libc::PROT_READ as u32;
     pub const PROT_WRITE: u32 = libc::PROT_WRITE as u32;
     pub const PROT_EXEC: u32 = libc::PROT_EXEC as u32;
+
+    pub const WNOHANG: u32 = libc::WNOHANG as u32;
+    pub const WUNTRACED: u32 = libc::WUNTRACED as u32;
+    pub const WCONTINUED: u32 = libc::WCONTINUED as u32;
 }
 
 pub mod errno {
