@@ -258,6 +258,8 @@ extern "C" {
     fn redox_get_egid_v1() -> RawResult;
     fn redox_get_rgid_v1() -> RawResult;
 
+    fn redox_get_ens_v0() -> RawResult;
+
     // This function is used to get the credentials, pid, euid, egid etc. of the process with the target pid.
     fn redox_get_proc_credentials_v1(cap_fd: usize, target_pid: usize, buf: &mut [u8])
         -> RawResult;
@@ -590,6 +592,10 @@ pub mod call {
     #[inline]
     pub fn getpid() -> Result<usize> {
         Error::demux(unsafe { redox_get_pid_v1() })
+    }
+    #[inline]
+    pub fn getens() -> Result<usize> {
+        Error::demux(unsafe { redox_get_ens_v0() })
     }
 
     #[inline]
