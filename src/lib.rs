@@ -115,6 +115,8 @@ pub mod flag {
         O_NONBLOCK, O_PATH, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY,
     };
 
+    pub use libc::{MSG_DONTROUTE, MSG_OOB, MSG_PEEK, MSG_DONTWAIT, MSG_EOR, };
+
     pub use libc::{CLOCK_MONOTONIC, CLOCK_REALTIME};
 
     pub use libc::{SIG_BLOCK, SIG_SETMASK, SIG_UNBLOCK};
