@@ -321,6 +321,8 @@ extern "C" {
         name_len: usize,
         cap_fd: usize,
     ) -> RawResult;
+
+    fn redox_fcntl_v0(fd: usize, cmd: usize, arg: usize) -> RawResult;
 }
 
 #[cfg(feature = "call")]
@@ -450,6 +452,11 @@ impl Fd {
         metadata: &[u64],
     ) -> Result<usize> {
         call::call_rw(self.raw(), payload, flags, metadata)
+    }
+
+    #[inline]
+    pub fn fcntl(&self, cmd: usize, arg: usize) -> Result<usize> {
+        call::fcntl(self.raw(), cmd, arg)
     }
 }
 #[cfg(feature = "call")]
@@ -793,6 +800,11 @@ pub mod call {
         })
         .map(|_| ())
     }
+
+    #[inline]
+    pub fn fcntl(fd: usize, cmd: usize, arg: usize) -> Result<usize> {
+        Error::demux(unsafe { redox_fcntl_v0(fd, cmd, arg) })
+    }
 }
 
 #[cfg(feature = "protocol")]
@@ -1086,4 +1098,8 @@ pub mod protocol {
             })
         }
     }
+
+    // CLOEXEC flags
+    pub const O_CLOEXEC: usize = 0x0100_0000;
+    pub const F_DUPFD_CLOEXEC: usize = 1030;
 }
