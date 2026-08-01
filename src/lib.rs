@@ -662,6 +662,9 @@ pub mod call {
         flags: syscall::CallFlags,
         metadata: &[u64],
     ) -> Result<usize> {
+        if flags.contains(syscall::CallFlags::WRITE) {
+            return Err(Error::new(syscall::EINVAL));
+        }
         unsafe {
             fd.raw_call(
                 payload.as_mut_ptr(),
@@ -679,6 +682,9 @@ pub mod call {
         flags: syscall::CallFlags,
         metadata: &[u64],
     ) -> Result<usize> {
+        if flags.contains(syscall::CallFlags::READ) {
+            return Err(Error::new(syscall::EINVAL));
+        }
         unsafe {
             fd.raw_call(
                 payload.as_ptr().cast_mut(),
