@@ -311,6 +311,16 @@ extern "C" {
         metadata: *const u64,
         metadata_len: usize,
     ) -> RawResult;
+    fn redox_sys_call_multiple_v0(
+        fds: *const usize,
+        fds_len: usize,
+        payload: *mut u8,
+        payload_len: usize,
+        flags: usize,
+        metadata: *const u64,
+        metadata_len: usize,
+    ) -> RawResult;
+
     fn redox_get_socket_token_v0(fd: usize, payload: *mut u8, payload_len: usize) -> RawResult;
 
     fn redox_setns_v0(fd: usize) -> RawResult;
@@ -472,6 +482,65 @@ pub mod call {
 
     use super::*;
 
+    #[cfg(feature = "redox_syscall")]
+    pub trait Call {
+        unsafe fn raw_call(
+            &self,
+            payload: *mut u8,
+            payload_len: usize,
+            flags: syscall::CallFlags,
+            metadata: &[u64],
+        ) -> Result<usize>;
+    }
+
+    #[cfg(feature = "redox_syscall")]
+    impl Call for usize {
+        unsafe fn raw_call(
+            &self,
+            payload: *mut u8,
+            payload_len: usize,
+            flags: syscall::CallFlags,
+            metadata: &[u64],
+        ) -> Result<usize> {
+            Ok(Error::demux(unsafe {
+                redox_sys_call_v0(
+                    *self,
+                    payload,
+                    payload_len,
+                    flags.bits(),
+                    metadata.as_ptr(),
+                    metadata.len(),
+                )
+            })?)
+        }
+    }
+
+    #[cfg(feature = "redox_syscall")]
+    impl Call for &[usize] {
+        /// # Errors
+        ///
+        /// * `EXDEV` - The file descriptors belong to different schemes.
+        unsafe fn raw_call(
+            &self,
+            payload: *mut u8,
+            payload_len: usize,
+            flags: syscall::CallFlags,
+            metadata: &[u64],
+        ) -> Result<usize> {
+            Error::demux(unsafe {
+                redox_sys_call_multiple_v0(
+                    self.as_ptr(),
+                    self.len(),
+                    payload,
+                    payload_len,
+                    flags.bits(),
+                    metadata.as_ptr(),
+                    metadata.len(),
+                )
+            })
+        }
+    }
+
     /// flags and mode are binary compatible with libc
     #[inline]
     pub fn open(path: impl AsRef<str>, flags: i32, mode: u16) -> Result<usize> {
@@ -584,62 +653,63 @@ pub mod call {
         Error::demux(unsafe { redox_close_v1(raw_fd) })?;
         Ok(())
     }
+
     #[cfg(feature = "redox_syscall")]
     #[inline]
-    pub fn call_ro(
-        fd: usize,
+    pub fn call_ro<T: Call>(
+        fd: T,
         payload: &mut [u8],
         flags: syscall::CallFlags,
         metadata: &[u64],
     ) -> Result<usize> {
-        Ok(Error::demux(unsafe {
-            redox_sys_call_v0(
-                fd,
+        if flags.contains(syscall::CallFlags::WRITE) {
+            return Err(Error::new(syscall::EINVAL));
+        }
+        unsafe {
+            fd.raw_call(
                 payload.as_mut_ptr(),
                 payload.len(),
-                (flags | syscall::CallFlags::READ).bits(),
-                metadata.as_ptr(),
-                metadata.len(),
+                flags | syscall::CallFlags::READ,
+                metadata,
             )
-        })?)
+        }
     }
     #[cfg(feature = "redox_syscall")]
     #[inline]
-    pub fn call_wo(
-        fd: usize,
+    pub fn call_wo<T: Call>(
+        fd: T,
         payload: &[u8],
         flags: syscall::CallFlags,
         metadata: &[u64],
     ) -> Result<usize> {
-        Ok(Error::demux(unsafe {
-            redox_sys_call_v0(
-                fd,
-                payload.as_ptr() as *mut u8,
+        if flags.contains(syscall::CallFlags::READ) {
+            return Err(Error::new(syscall::EINVAL));
+        }
+        unsafe {
+            fd.raw_call(
+                payload.as_ptr().cast_mut(),
                 payload.len(),
-                (flags | syscall::CallFlags::WRITE).bits(),
-                metadata.as_ptr(),
-                metadata.len(),
+                flags | syscall::CallFlags::WRITE,
+                metadata,
             )
-        })?)
+        }
     }
     #[cfg(feature = "redox_syscall")]
     #[inline]
-    pub fn call_rw(
-        fd: usize,
+    pub fn call_rw<T: Call>(
+        fd: T,
         payload: &mut [u8],
         flags: syscall::CallFlags,
         metadata: &[u64],
     ) -> Result<usize> {
-        Ok(Error::demux(unsafe {
-            redox_sys_call_v0(
-                fd,
+        unsafe {
+            fd.raw_call(
                 payload.as_mut_ptr(),
                 payload.len(),
-                (flags | syscall::CallFlags::READ | syscall::CallFlags::WRITE).bits(),
-                metadata.as_ptr(),
-                metadata.len(),
+                flags | syscall::CallFlags::READ | syscall::CallFlags::WRITE,
+                metadata,
             )
-        })?)
+        }
     }
 
     #[inline]
