@@ -957,6 +957,19 @@ pub mod protocol {
         Connect = 0,
     }
 
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(usize)]
+    pub enum TtyCall {
+        Termios = 0,
+        Flush = 1,
+        SendBreak = 2,
+        Flow = 3,
+        PtsName = 4,
+        PtLock = 5,
+        Pgrp = 6,
+        Winsize = 7,
+    }
+
     impl ProcCall {
         pub fn try_from_raw(raw: usize) -> Option<Self> {
             Some(match raw {
@@ -1014,6 +1027,22 @@ pub mod protocol {
         pub fn try_from_raw(raw: usize) -> Option<Self> {
             Some(match raw {
                 0 => Self::Connect,
+                _ => return None,
+            })
+        }
+    }
+
+    impl TtyCall {
+        pub fn try_from_raw(raw: usize) -> Option<Self> {
+            Some(match raw {
+                0 => Self::Termios,
+                1 => Self::Flush,
+                2 => Self::SendBreak,
+                3 => Self::Flow,
+                4 => Self::PtsName,
+                5 => Self::PtLock,
+                6 => Self::Pgrp,
+                7 => Self::Winsize,
                 _ => return None,
             })
         }
