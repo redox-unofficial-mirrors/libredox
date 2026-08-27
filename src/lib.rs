@@ -24,6 +24,10 @@ pub mod error {
         pub fn errno(self) -> i32 {
             self.errno.into()
         }
+        #[expect(
+            unreachable_patterns,
+            reason = "EAGAIN and EWOULDBLOCK share the same number"
+        )]
         pub fn is_wouldblock(self) -> bool {
             matches!(self.errno(), errno::EAGAIN | errno::EWOULDBLOCK)
         }
@@ -927,6 +931,11 @@ pub mod protocol {
     }
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     #[repr(usize)]
+    pub enum PidfdCall {
+        SendSignal = 0,
+    }
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(usize)]
     pub enum ThreadCall {
         // TODO: replace with sendfd equivalent syscall for sending memory, or force userspace to
         // obtain its TCB memory from this server
@@ -991,6 +1000,14 @@ pub mod protocol {
                 15 => Self::GetProcCredentials,
                 16 => Self::SetProcPriority,
                 17 => Self::GetProcPriority,
+                _ => return None,
+            })
+        }
+    }
+    impl PidfdCall {
+        pub fn try_from_raw(raw: usize) -> Option<Self> {
+            Some(match raw {
+                0 => Self::SendSignal,
                 _ => return None,
             })
         }
