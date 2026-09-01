@@ -341,6 +341,7 @@ extern "C" {
     ) -> RawResult;
 
     fn redox_fcntl_v0(fd: usize, cmd: usize, arg: usize) -> RawResult;
+
 }
 
 #[cfg(feature = "call")]
@@ -1227,4 +1228,34 @@ pub mod protocol {
     pub const F_GETFD: usize = 1;
     pub const F_SETFD: usize = 2;
     pub const F_DUPFD_CLOEXEC: usize = 1030;
+}
+
+#[cfg(feature = "numa")]
+pub mod numa {
+    pub use syscall::NumaMemoryPolicy;
+
+    unsafe extern "C" {
+        fn redox_numa_set_mem_policy_v0(policy: *const u8, len: usize) -> RawResult;
+        fn redox_numa_get_mem_policy_v0(policy: *mut u8, len: usize) -> RawResult;
+    }
+
+    use crate::RawResult;
+    use syscall::Error;
+
+    pub fn set_memory_policy(policy: NumaMemoryPolicy) -> syscall::Result<()> {
+        let policy = (policy as u64).to_ne_bytes();
+        Error::demux(unsafe { redox_numa_set_mem_policy_v0(policy.as_ptr(), policy.len()) })?;
+        Ok(())
+    }
+
+    pub fn current_memory_policy() -> syscall::Result<NumaMemoryPolicy> {
+        let mut policy = [0u8; size_of::<NumaMemoryPolicy>()];
+        Error::demux(unsafe {
+            redox_numa_get_mem_policy_v0(policy.as_mut_ptr(), size_of::<NumaMemoryPolicy>())
+        })?;
+        Ok(
+            NumaMemoryPolicy::try_from(u32::from_ne_bytes(policy) as u64)
+                .expect("Kernel must write a valid policy"),
+        )
+    }
 }
