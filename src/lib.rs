@@ -158,6 +158,10 @@ pub mod flag {
         SIGXFSZ,
     };
 
+    pub use libc::{F_DUPFD, F_DUPFD_CLOEXEC, F_GETFD, F_SETFD};
+
+    pub use libc::RENAME_NOREPLACE;
+
     #[cfg(target_os = "redox")]
     pub use libc::{O_EXLOCK, O_SHLOCK, O_SYMLINK};
 
@@ -1215,7 +1219,12 @@ pub mod protocol {
         }
     }
 
-    // CLOEXEC flags
+    // CLOEXEC flag
     pub const O_CLOEXEC: usize = 0x0100_0000;
+
+    // fcntl flags
+    pub const F_DUPFD: usize = 0;
+    pub const F_GETFD: usize = 1;
+    pub const F_SETFD: usize = 2;
     pub const F_DUPFD_CLOEXEC: usize = 1030;
 }
