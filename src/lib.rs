@@ -933,6 +933,8 @@ pub mod protocol {
 
         SetProcPriority = 16,
         GetProcPriority = 17,
+
+        ControlTerm = 18,
     }
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     #[repr(usize)]
@@ -1005,6 +1007,7 @@ pub mod protocol {
                 15 => Self::GetProcCredentials,
                 16 => Self::SetProcPriority,
                 17 => Self::GetProcPriority,
+                18 => Self::ControlTerm,
                 _ => return None,
             })
         }
