@@ -935,7 +935,27 @@ pub mod protocol {
         GetProcPriority = 17,
 
         ControlTerm = 18,
+        Rlimit = 19,
     }
+
+    const RLIM_INFINITY: u64 = !0;
+
+    #[derive(Clone, Copy, Debug)]
+    #[repr(C)]
+    pub struct Rlimit {
+        pub rlim_cur: u64,
+        pub rlim_max: u64,
+    }
+    impl Rlimit {
+        pub const fn const_default() -> Self {
+            Self {
+                rlim_cur: RLIM_INFINITY,
+                rlim_max: RLIM_INFINITY,
+            }
+        }
+    }
+    unsafe impl plain::Plain for Rlimit {}
+
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     #[repr(usize)]
     pub enum PidfdCall {
@@ -1008,6 +1028,7 @@ pub mod protocol {
                 16 => Self::SetProcPriority,
                 17 => Self::GetProcPriority,
                 18 => Self::ControlTerm,
+                19 => Self::Rlimit,
                 _ => return None,
             })
         }
