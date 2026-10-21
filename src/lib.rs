@@ -249,7 +249,7 @@ extern "C" {
         fcntl_flags: u32,
     ) -> RawResult;
     fn redox_dup_v1(fd: usize, buf: *const u8, len: usize) -> RawResult;
-    fn redox_dup2_v1(old_fd: usize, new_fd: usize, buf: *const u8, len: usize) -> RawResult;
+    fn redox_dup2_v2(old_fd: usize, new_fd: usize) -> RawResult;
     fn redox_read_v1(fd: usize, dst_base: *mut u8, dst_len: usize) -> RawResult;
     fn redox_write_v1(fd: usize, src_base: *const u8, src_len: usize) -> RawResult;
     fn redox_fchmod_v1(fd: usize, new_mode: u16) -> RawResult;
@@ -365,8 +365,8 @@ impl Fd {
         call::dup(self.raw(), buf)
     }
     #[inline]
-    pub fn dup2(&self, new_fd: usize, buf: &[u8]) -> Result<usize> {
-        call::dup2(self.raw(), new_fd, buf)
+    pub fn dup2(&self, new_fd: usize) -> Result<usize> {
+        call::dup2(self.raw(), new_fd)
     }
 
     #[inline]
@@ -578,11 +578,8 @@ pub mod call {
         })?)
     }
     #[inline]
-    pub fn dup2(old_fd: usize, new_fd: usize, buf: impl AsRef<[u8]>) -> Result<usize> {
-        let buf = buf.as_ref();
-        Ok(Error::demux(unsafe {
-            redox_dup2_v1(old_fd, new_fd, buf.as_ptr(), buf.len())
-        })?)
+    pub fn dup2(old_fd: usize, new_fd: usize) -> Result<usize> {
+        Ok(Error::demux(unsafe { redox_dup2_v2(old_fd, new_fd) })?)
     }
     #[inline]
     pub fn read(raw_fd: usize, buf: &mut [u8]) -> Result<usize> {
