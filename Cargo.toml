@@ -1,7 +1,7 @@
 [package]
 name = "libredox"
 authors = ["4lDO2 <4lDO2@protonmail.com>"]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 license = "MIT"
 description = "Redox stable ABI"
@@ -17,7 +17,7 @@ call = ["base"]
 std = ["base"]
 protocol = ["plain", "bitflags", "redox_syscall"]
 mkns = ["ioslice"]
-numa = ["redox_syscall"]
+numa = ["redox_syscall", "call"]
 
 [dependencies]
 bitflags = { version = "2", optional = true }
@@ -25,3 +25,6 @@ libc = { version = "0.2", optional = true }
 redox_syscall = { version = "0.9.5", optional = true }
 ioslice = { version = "0.6", optional = true }
 plain = { version = "0.2", optional = true }
+
+[patch.crates-io]
+redox_syscall = {git = "https://gitlab.redox-os.org/redox-os/kernel/"}
