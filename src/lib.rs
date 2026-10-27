@@ -4,6 +4,9 @@
 #[cfg(feature = "call")]
 use self::error::{Error, Result};
 
+#[cfg(all(feature = "call", feature = "redox_syscall"))]
+pub use libc::{pthread_self, pthread_t};
+
 #[cfg(feature = "base")]
 pub mod error {
     use super::*;
@@ -342,6 +345,11 @@ extern "C" {
 
     fn redox_fcntl_v0(fd: usize, cmd: usize, arg: usize) -> RawResult;
 
+    fn redox_current_thread_fd_unstable_v0() -> usize;
+
+    fn redox_sched_set_affinity_v0(pthread: pthread_t, cpuset: *const u8, len: usize) -> RawResult;
+
+    fn redox_sched_get_affinity_v0(pthread: pthread_t, cpuset: *mut u8, len: usize) -> RawResult;
 }
 
 #[cfg(feature = "call")]
@@ -487,7 +495,10 @@ impl Drop for Fd {
 
 #[cfg(feature = "call")]
 pub mod call {
-    use core::mem::MaybeUninit;
+    use core::{mem::MaybeUninit, ptr};
+
+    #[cfg(feature = "redox_syscall")]
+    use syscall::CpuSet;
 
     use super::*;
 
@@ -880,6 +891,33 @@ pub mod call {
     #[inline]
     pub fn fcntl(fd: usize, cmd: usize, arg: usize) -> Result<usize> {
         Error::demux(unsafe { redox_fcntl_v0(fd, cmd, arg) })
+    }
+
+    #[inline]
+    pub fn current_thread_fd_unstable() -> usize {
+        unsafe { redox_current_thread_fd_unstable_v0() }
+    }
+
+    #[cfg(feature = "redox_syscall")]
+    pub fn sched_set_affinity(thread: pthread_t, cpuset: &CpuSet) -> Result<()> {
+        Error::demux(unsafe {
+            redox_sched_set_affinity_v0(thread, ptr::from_ref(cpuset).cast(), size_of::<CpuSet>())
+        })
+        .map(|_| ())
+    }
+
+    #[cfg(feature = "redox_syscall")]
+    pub fn sched_get_affinity(thread: pthread_t) -> Result<CpuSet> {
+        let mut cpuset = CpuSet::empty();
+        Error::demux(unsafe {
+            redox_sched_get_affinity_v0(
+                thread,
+                ptr::from_mut(&mut cpuset).cast(),
+                size_of::<CpuSet>(),
+            )
+        })
+        .map(|_| ())?;
+        Ok(cpuset)
     }
 }
 
