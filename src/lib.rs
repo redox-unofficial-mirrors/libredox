@@ -162,6 +162,8 @@ pub mod flag {
 
     pub use libc::RENAME_NOREPLACE;
 
+    pub use libc::{UTIME_NOW, UTIME_OMIT};
+
     #[cfg(target_os = "redox")]
     pub use libc::{O_EXLOCK, O_SHLOCK, O_SYMLINK};
 
